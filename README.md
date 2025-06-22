@@ -10,7 +10,6 @@ This is the **backend server** for **PandaChats**, a full-stack real-time chat a
 * ⚙️ **Backend API**: [https://chat-5km8.onrender.com](https://chat-5km8.onrender.com)
 * 📁 **Frontend Repo**: [https://github.com/subramanyamchoda/chat\_client](https://github.com/subramanyamchoda/chat_client)
 * 📁 **Backend Repo**: [https://github.com/subramanyamchoda/chat\_backend](https://github.com/subramanyamchoda/chat_backend)
-* 👨‍💻 **Developer Profile**: [LinkedIn – Subramanyam Choda](https://www.linkedin.com/in/subramanyamchoda/)
 
 ---
 
