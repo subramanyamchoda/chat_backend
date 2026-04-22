@@ -6,7 +6,6 @@ const dotenv = require('dotenv');
 const multer = require('multer');
 const { Readable } = require('stream');
 const { Server } = require('socket.io');
-const nodemailer = require('nodemailer');
 const Message = require('./models/Message');
 const Call = require('./Call');
 
@@ -23,39 +22,6 @@ const io = new Server(server, {
     origin: '*',
   }
 });
-
-// === Nodemailer Transporter ===
-
-// Transporter setup (Gmail + App Password)
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: "subbuchoda0@gmail.com",       // Your Gmail
-    pass: "nbykauqwedncujtn",            // Your Gmail App Password
-  },
-});
-
-// 3. Function to send email
-const sendEmail = async (subject, text, toEmail = "subramanyamchoda50@gmail.com") => {
-  try {
-    const mailOptions = {
-      from: "subbuchoda0@gmail.com",
-      to: toEmail,
-      subject,
-      text,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✉️ Email sent:", info.response);
-  } catch (error) {
-    console.error("❌ Error sending email:", error.message);
-  }
-};
-
-// Example test call
-
-
-sendEmail("Test Subject", "Hello! This is a test email.");
 
 // === MongoDB + GridFS Setup ===
 let gridfsBucket;
@@ -83,44 +49,30 @@ io.on('connection', (socket) => {
   onlineUsers++;
   io.emit('updateOnlineUsers', onlineUsers);
   console.log('🟢 A user connected. Total:', onlineUsers);
-   sendEmail("Test Subject", "Hello! This is a test email.");
 
-  // Send email when onlineUsers becomes 1
-  if (onlineUsers === 1 || onlineUsers === 2) {
-    sendEmail('🟢 Server Active', `A user connected. Online users: ${onlineUsers}`);
-    sendEmail("Test Subject", "Hello! This is a test email.");
-    
-  }
-
-  // Assign role and track last seen
   socket.on('userConnected', (role) => {
     lastSeen[socket.id] = new Date().toLocaleTimeString();
     socket.broadcast.emit('userStatus', `${role} connected`);
     io.emit('lastSeen', lastSeen);
-
-    if (role === 'f' || role === 'm') {
-      sendEmail('👤 New User Connected', `User with role "${role}" just connected.`);
-    }
   });
 
-  // Handle messaging
+  // ✅ name already added
   socket.on('sendMessage', async (msg) => {
     const message = new Message({
       text: msg.text,
       sender: msg.sender,
+      name: msg.name,
       image: msg.image || null,
     });
     const saved = await message.save();
     io.emit('message', saved);
   });
 
-  // Read status
   socket.on('messageRead', (messageId, userId) => {
     io.emit('readMessage', { messageId, userId });
     io.emit('seenMessage', { messageId, userId });
   });
 
-  // Typing indicator
   socket.on('typing', (userId) => {
     typingUsers[userId] = true;
     io.emit('typing', Object.keys(typingUsers).length > 0);
@@ -133,7 +85,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Message reaction
   socket.on('messageReaction', (messageId, emoji) => {
     if (!messageReactions[messageId]) {
       messageReactions[messageId] = [];
@@ -142,7 +93,6 @@ io.on('connection', (socket) => {
     io.emit('messageReaction', { messageId, emoji });
   });
 
-  // Disconnect
   socket.on('userDisconnected', (role) => {
     socket.broadcast.emit('userStatus', `${role} disconnected`);
   });
@@ -155,8 +105,6 @@ io.on('connection', (socket) => {
 
     lastSeen[socket.id] = new Date().toLocaleTimeString();
     io.emit('lastSeen', lastSeen);
-
-    // sendEmail('🔴 User Disconnected', `A user disconnected. Online users: ${onlineUsers}`);
   });
 });
 
@@ -241,15 +189,13 @@ app.delete('/files/:filename', async (req, res) => {
   }
 });
 
-// === Default Route ===
+// Default Route
 app.get('/', (req, res) => {
-  sendEmail('🌐 Website Accessed', 'The website was opened by a user.');
   res.send("Welcome to the chat & file upload server");
 });
 
-
- 
-const onlineUsers1 = new Map(); // userId -> socket.id
+// === CALL SOCKET (UNCHANGED) ===
+const onlineUsers1 = new Map();
 
 io.on("connection", (socket) => {
   console.log("socket connected", socket.id);
@@ -257,11 +203,9 @@ io.on("connection", (socket) => {
   socket.on("register", (userId) => {
     socket.userId = userId;
     onlineUsers1.set(userId, socket.id);
-    console.log("registered", userId, "->", socket.id);
     io.to(socket.id).emit("registered", { userId });
   });
 
-  // Caller -> Callee: initial offer
   socket.on("call-user", ({ to, from, offer }) => {
     const targetSocketId = onlineUsers1.get(to);
     if (targetSocketId) {
@@ -271,7 +215,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Callee accepts -> send answer back to caller
   socket.on("accept-call", ({ to, from, answer }) => {
     const targetSocketId = onlineUsers1.get(to);
     if (targetSocketId) {
@@ -279,7 +222,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ICE candidates exchange (bidirectional)
   socket.on("ice-candidate", ({ to, candidate }) => {
     const targetSocketId = onlineUsers1.get(to);
     if (targetSocketId) {
@@ -297,23 +239,20 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     if (socket.userId) {
       onlineUsers1.delete(socket.userId);
-      console.log("user disconnected", socket.userId);
     }
   });
 });
 
-// (Optional) endpoint to save call history (if you wire up a DB)
+// Calls API
 app.post("/api/calls", async (req, res) => {
   try {
-    // Save to DB - left as TODO or implement as needed
     res.status(201).json({ ok: true, body: req.body });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: "Failed to save call" });
   }
 });
 
-// === Start Server ===
+// Start Server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
